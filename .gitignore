@@ -1,0 +1,12 @@
+# Javascript
+
+node_modules/
+.env.local
+build/
+.next/
+*.log
+.env
+npm-debug.log*
+.parcel-cache/
+coverage/
+.cache/
