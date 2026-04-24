@@ -44,6 +44,19 @@ export function gitPush(repoPath, message = 'sync: update bookmarks') {
   }
 }
 
+/**
+ * Returns the current git branch name for the given repo path.
+ * Returns null if the branch cannot be determined.
+ */
+export function getCurrentBranch(repoPath) {
+  try {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoPath, encoding: 'utf8' });
+    return branch.trim();
+  } catch {
+    return null;
+  }
+}
+
 export function syncBookmarks() {
   const repoPath = getRepoPath();
 
