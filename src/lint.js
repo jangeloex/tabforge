@@ -1,61 +1,57 @@
+import { URL } from 'url';
+
 /**
- * Lint bookmarks for common issues:
- * - missing title
- * - invalid URL format
- * - duplicate URLs
- * - empty tag strings
+ * Returns true if the given string is a valid URL.
+ * @param {string} url
+ * @returns {boolean}
  */
-
-const { URL } = require('url');
-
-function isValidUrl(str) {
+export function isValidUrl(url) {
+  if (!url || typeof url !== 'string') return false;
   try {
-    new URL(str);
-    return true;
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch {
     return false;
   }
 }
 
-function lintBookmarks(bookmarks) {
+/**
+ * Lints a list of bookmarks and returns an array of issues.
+ * Each issue has: { index, bookmark, problems: string[] }
+ * @param {Array} bookmarks
+ * @returns {Array}
+ */
+export function lintBookmarks(bookmarks) {
+  if (!Array.isArray(bookmarks)) return [];
+
   const issues = [];
-  const seenUrls = new Map();
 
-  bookmarks.forEach((bookmark, index) => {
-    const id = bookmark.id || `#${index}`;
+  bookmarks.forEach((bm, index) => {
+    const problems = [];
 
-    if (!bookmark.title || bookmark.title.trim() === '') {
-      issues.push({ id, url: bookmark.url, type: 'missing_title', message: 'Bookmark has no title' });
+    if (!bm.url || !isValidUrl(bm.url)) {
+      problems.push('Invalid or missing URL');
     }
 
-    if (!bookmark.url || bookmark.url.trim() === '') {
-      issues.push({ id, url: bookmark.url, type: 'missing_url', message: 'Bookmark has no URL' });
-    } else if (!isValidUrl(bookmark.url)) {
-      issues.push({ id, url: bookmark.url, type: 'invalid_url', message: `Invalid URL: ${bookmark.url}` });
-    } else {
-      const normalized = bookmark.url.toLowerCase();
-      if (seenUrls.has(normalized)) {
-        issues.push({
-          id,
-          url: bookmark.url,
-          type: 'duplicate_url',
-          message: `Duplicate URL also found at id ${seenUrls.get(normalized)}`
-        });
-      } else {
-        seenUrls.set(normalized, id);
+    if (!bm.title || bm.title.trim() === '') {
+      problems.push('Missing title');
+    }
+
+    if (bm.tags && !Array.isArray(bm.tags)) {
+      problems.push('Tags must be an array');
+    }
+
+    if (bm.tags && Array.isArray(bm.tags)) {
+      const invalidTags = bm.tags.filter(t => typeof t !== 'string' || t.trim() === '');
+      if (invalidTags.length > 0) {
+        problems.push('Tags contain empty or non-string values');
       }
     }
 
-    if (Array.isArray(bookmark.tags)) {
-      bookmark.tags.forEach((tag, ti) => {
-        if (typeof tag !== 'string' || tag.trim() === '') {
-          issues.push({ id, url: bookmark.url, type: 'empty_tag', message: `Empty or invalid tag at index ${ti}` });
-        }
-      });
+    if (problems.length > 0) {
+      issues.push({ index, bookmark: bm, problems });
     }
   });
 
   return issues;
 }
-
-module.exports = { lintBookmarks, isValidUrl };

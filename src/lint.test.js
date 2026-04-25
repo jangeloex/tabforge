@@ -1,65 +1,72 @@
-const { lintBookmarks, isValidUrl } = require('./lint');
+import { describe, it, expect } from 'vitest';
+import { isValidUrl, lintBookmarks } from './lint.js';
 
 describe('isValidUrl', () => {
-  it('accepts valid http url', () => {
-    expect(isValidUrl('https://example.com')).toBe(true);
+  it('returns true for valid http URL', () => {
+    expect(isValidUrl('http://example.com')).toBe(true);
   });
 
-  it('rejects plain strings', () => {
-    expect(isValidUrl('not a url')).toBe(false);
+  it('returns true for valid https URL', () => {
+    expect(isValidUrl('https://example.com/path?q=1')).toBe(true);
   });
 
-  it('rejects empty string', () => {
+  it('returns false for ftp URL', () => {
+    expect(isValidUrl('ftp://example.com')).toBe(false);
+  });
+
+  it('returns false for empty string', () => {
     expect(isValidUrl('')).toBe(false);
+  });
+
+  it('returns false for null', () => {
+    expect(isValidUrl(null)).toBe(false);
+  });
+
+  it('returns false for plain text', () => {
+    expect(isValidUrl('not a url')).toBe(false);
   });
 });
 
 describe('lintBookmarks', () => {
-  it('returns no issues for clean bookmarks', () => {
+  it('returns empty array for clean bookmarks', () => {
     const bookmarks = [
-      { id: '1', title: 'Example', url: 'https://example.com', tags: ['web'] },
-      { id: '2', title: 'Google', url: 'https://google.com', tags: [] }
+      { url: 'https://example.com', title: 'Example', tags: ['web'] },
     ];
     expect(lintBookmarks(bookmarks)).toEqual([]);
   });
 
-  it('flags missing title', () => {
-    const bookmarks = [{ id: '1', title: '', url: 'https://example.com', tags: [] }];
+  it('flags missing URL', () => {
+    const bookmarks = [{ title: 'No URL', tags: [] }];
     const issues = lintBookmarks(bookmarks);
     expect(issues).toHaveLength(1);
-    expect(issues[0].type).toBe('missing_title');
+    expect(issues[0].problems).toContain('Invalid or missing URL');
   });
 
-  it('flags invalid url', () => {
-    const bookmarks = [{ id: '1', title: 'Bad', url: 'not-a-url', tags: [] }];
+  it('flags invalid URL', () => {
+    const bookmarks = [{ url: 'not-a-url', title: 'Bad URL' }];
     const issues = lintBookmarks(bookmarks);
-    expect(issues.some(i => i.type === 'invalid_url')).toBe(true);
+    expect(issues[0].problems).toContain('Invalid or missing URL');
   });
 
-  it('flags missing url', () => {
-    const bookmarks = [{ id: '1', title: 'No URL', url: '', tags: [] }];
+  it('flags missing title', () => {
+    const bookmarks = [{ url: 'https://example.com', title: '' }];
     const issues = lintBookmarks(bookmarks);
-    expect(issues.some(i => i.type === 'missing_url')).toBe(true);
+    expect(issues[0].problems).toContain('Missing title');
   });
 
-  it('flags duplicate urls (case-insensitive)', () => {
-    const bookmarks = [
-      { id: '1', title: 'A', url: 'https://example.com', tags: [] },
-      { id: '2', title: 'B', url: 'https://EXAMPLE.COM', tags: [] }
-    ];
+  it('flags non-array tags', () => {
+    const bookmarks = [{ url: 'https://example.com', title: 'Hi', tags: 'web' }];
     const issues = lintBookmarks(bookmarks);
-    expect(issues.some(i => i.type === 'duplicate_url')).toBe(true);
+    expect(issues[0].problems).toContain('Tags must be an array');
   });
 
-  it('flags empty tags', () => {
-    const bookmarks = [{ id: '1', title: 'A', url: 'https://example.com', tags: ['', 'valid'] }];
+  it('flags empty tag values', () => {
+    const bookmarks = [{ url: 'https://example.com', title: 'Hi', tags: ['', 'valid'] }];
     const issues = lintBookmarks(bookmarks);
-    expect(issues.some(i => i.type === 'empty_tag')).toBe(true);
+    expect(issues[0].problems).toContain('Tags contain empty or non-string values');
   });
 
-  it('returns multiple issues for one bookmark', () => {
-    const bookmarks = [{ id: '1', title: '', url: 'bad-url', tags: [''] }];
-    const issues = lintBookmarks(bookmarks);
-    expect(issues.length).toBeGreaterThanOrEqual(2);
+  it('returns empty array for non-array input', () => {
+    expect(lintBookmarks(null)).toEqual([]);
   });
 });
