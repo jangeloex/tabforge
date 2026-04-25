@@ -27,6 +27,12 @@ describe('searchBookmarks', () => {
     expect(results[0].title).toBe('MDN Web Docs');
   });
 
+  it('matches by tag', () => {
+    const results = searchBookmarks(SAMPLE_BOOKMARKS, 'git');
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results.some(b => b.title === 'GitHub')).toBe(true);
+  });
+
   it('returns multiple matches', () => {
     const results = searchBookmarks(SAMPLE_BOOKMARKS, 'dev');
     expect(results.length).toBeGreaterThanOrEqual(1);
@@ -53,6 +59,11 @@ describe('searchBookmarks', () => {
 
   it('returns empty array when no matches', () => {
     const results = searchBookmarks(SAMPLE_BOOKMARKS, 'zzznomatch');
+    expect(results).toHaveLength(0);
+  });
+
+  it('returns empty array for empty bookmark list', () => {
+    const results = searchBookmarks([], 'github');
     expect(results).toHaveLength(0);
   });
 });
