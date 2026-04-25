@@ -1,72 +1,72 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { vol } from 'memfs';
-import { vi } from 'vitest';
-import { renameBookmark, renameBookmarkByIndex } from './rename.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renameBookmark, renameBookmarkUrl } from './rename.js';
 
-vi.mock('fs/promises', () => require('memfs').promises);
+vi.mock('./bookmarks.js', () => {
+  let store = [];
+  return {
+    loadBookmarks: vi.fn(async () => [...store]),
+    saveBookmarks: vi.fn(async (b) => { store = [...b]; }),
+    __setStore: (b) => { store = [...b]; },
+  };
+});
 
-const DIR = '/test-config';
+import { loadBookmarks, saveBookmarks, __setStore } from './bookmarks.js';
 
-const INITIAL = [
+const SAMPLE = [
   { url: 'https://example.com', title: 'Example', tags: [] },
-  { url: 'https://mozilla.org', title: 'Mozilla', tags: ['browser'] },
+  { url: 'https://other.com', title: 'Other', tags: ['dev'] },
 ];
 
 beforeEach(() => {
-  vol.reset();
-  vol.fromJSON({
-    [`${DIR}/bookmarks.json`]: JSON.stringify(INITIAL),
-  });
+  vi.clearAllMocks();
+  __setStore(SAMPLE);
 });
 
 describe('renameBookmark', () => {
-  it('renames a bookmark by URL', async () => {
-    const result = await renameBookmark(DIR, 'https://example.com', 'Example Site');
-    expect(result.ok).toBe(true);
-    expect(result.message).toContain('Example Site');
+  it('renames the title of an existing bookmark', async () => {
+    const result = await renameBookmark('https://example.com', 'New Title');
+    expect(result.updated).toBe(true);
+    expect(result.bookmark.title).toBe('New Title');
+    expect(saveBookmarks).toHaveBeenCalled();
   });
 
-  it('returns error when URL not found', async () => {
-    const result = await renameBookmark(DIR, 'https://nothere.com', 'Whatever');
-    expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/no bookmark found/i);
+  it('returns updated:false when url not found', async () => {
+    const result = await renameBookmark('https://notfound.com', 'X');
+    expect(result.updated).toBe(false);
+    expect(result.bookmark).toBeNull();
+    expect(saveBookmarks).not.toHaveBeenCalled();
   });
 
-  it('returns error when new title is empty', async () => {
-    const result = await renameBookmark(DIR, 'https://example.com', '   ');
-    expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/title is required/i);
-  });
-
-  it('returns error when URL is missing', async () => {
-    const result = await renameBookmark(DIR, '', 'Title');
-    expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/url is required/i);
+  it('throws when url or newTitle is missing', async () => {
+    await expect(renameBookmark('', 'Title')).rejects.toThrow();
+    await expect(renameBookmark('https://x.com', '')).rejects.toThrow();
   });
 });
 
-describe('renameBookmarkByIndex', () => {
-  it('renames a bookmark by 1-based index', async () => {
-    const result = await renameBookmarkByIndex(DIR, 2, 'Mozilla Foundation');
-    expect(result.ok).toBe(true);
-    expect(result.message).toContain('Mozilla Foundation');
+describe('renameBookmarkUrl', () => {
+  it('renames the url of an existing bookmark', async () => {
+    const result = await renameBookmarkUrl('https://example.com', 'https://new.com');
+    expect(result.updated).toBe(true);
+    expect(result.bookmark.url).toBe('https://new.com');
   });
 
-  it('returns error for out-of-range index', async () => {
-    const result = await renameBookmarkByIndex(DIR, 99, 'Nope');
-    expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/out of range/i);
+  it('also updates title when provided', async () => {
+    const result = await renameBookmarkUrl('https://example.com', 'https://new.com', 'New');
+    expect(result.bookmark.title).toBe('New');
   });
 
-  it('returns error for zero index', async () => {
-    const result = await renameBookmarkByIndex(DIR, 0, 'Nope');
-    expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/out of range/i);
+  it('throws when new url already exists', async () => {
+    await expect(
+      renameBookmarkUrl('https://example.com', 'https://other.com')
+    ).rejects.toThrow(/already exists/);
   });
 
-  it('returns error when new title is blank', async () => {
-    const result = await renameBookmarkByIndex(DIR, 1, '');
-    expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/title is required/i);
+  it('returns updated:false when old url not found', async () => {
+    const result = await renameBookmarkUrl('https://ghost.com', 'https://new.com');
+    expect(result.updated).toBe(false);
+  });
+
+  it('throws when args are missing', async () => {
+    await expect(renameBookmarkUrl('', 'https://new.com')).rejects.toThrow();
   });
 });

@@ -2,61 +2,58 @@ import { loadBookmarks, saveBookmarks } from './bookmarks.js';
 
 /**
  * Rename a bookmark's title by URL.
- * @param {string} configDir
  * @param {string} url
  * @param {string} newTitle
- * @returns {{ ok: boolean, message: string }}
+ * @returns {{ updated: boolean, bookmark: object|null }}
  */
-export async function renameBookmark(configDir, url, newTitle) {
-  if (!url || typeof url !== 'string') {
-    return { ok: false, message: 'URL is required.' };
-  }
-  if (!newTitle || typeof newTitle !== 'string' || !newTitle.trim()) {
-    return { ok: false, message: 'New title is required.' };
+export async function renameBookmark(url, newTitle) {
+  if (!url || !newTitle) {
+    throw new Error('url and newTitle are required');
   }
 
-  const bookmarks = await loadBookmarks(configDir);
+  const bookmarks = await loadBookmarks();
   const index = bookmarks.findIndex((b) => b.url === url);
 
   if (index === -1) {
-    return { ok: false, message: `No bookmark found with URL: ${url}` };
+    return { updated: false, bookmark: null };
   }
 
-  const oldTitle = bookmarks[index].title;
-  bookmarks[index] = { ...bookmarks[index], title: newTitle.trim() };
-  await saveBookmarks(configDir, bookmarks);
+  bookmarks[index] = { ...bookmarks[index], title: newTitle };
+  await saveBookmarks(bookmarks);
 
-  return {
-    ok: true,
-    message: `Renamed "${oldTitle}" → "${newTitle.trim()}".`,
-  };
+  return { updated: true, bookmark: bookmarks[index] };
 }
 
 /**
- * Rename a bookmark's title by index (1-based).
- * @param {string} configDir
- * @param {number} index  1-based
- * @param {string} newTitle
- * @returns {{ ok: boolean, message: string }}
+ * Rename a bookmark's URL (and optionally title) by old URL.
+ * @param {string} oldUrl
+ * @param {string} newUrl
+ * @param {string|null} newTitle
+ * @returns {{ updated: boolean, bookmark: object|null }}
  */
-export async function renameBookmarkByIndex(configDir, index, newTitle) {
-  if (!newTitle || typeof newTitle !== 'string' || !newTitle.trim()) {
-    return { ok: false, message: 'New title is required.' };
+export async function renameBookmarkUrl(oldUrl, newUrl, newTitle = null) {
+  if (!oldUrl || !newUrl) {
+    throw new Error('oldUrl and newUrl are required');
   }
 
-  const bookmarks = await loadBookmarks(configDir);
-  const i = index - 1;
+  const bookmarks = await loadBookmarks();
+  const index = bookmarks.findIndex((b) => b.url === oldUrl);
 
-  if (i < 0 || i >= bookmarks.length) {
-    return { ok: false, message: `Index ${index} is out of range.` };
+  if (index === -1) {
+    return { updated: false, bookmark: null };
   }
 
-  const oldTitle = bookmarks[i].title;
-  bookmarks[i] = { ...bookmarks[i], title: newTitle.trim() };
-  await saveBookmarks(configDir, bookmarks);
+  const duplicate = bookmarks.findIndex((b, i) => b.url === newUrl && i !== index);
+  if (duplicate !== -1) {
+    throw new Error(`A bookmark with URL "${newUrl}" already exists`);
+  }
 
-  return {
-    ok: true,
-    message: `Renamed "${oldTitle}" → "${newTitle.trim()}".`,
+  bookmarks[index] = {
+    ...bookmarks[index],
+    url: newUrl,
+    ...(newTitle ? { title: newTitle } : {}),
   };
+
+  await saveBookmarks(bookmarks);
+  return { updated: true, bookmark: bookmarks[index] };
 }
