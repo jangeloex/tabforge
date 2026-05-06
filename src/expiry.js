@@ -1,18 +1,12 @@
 import { loadBookmarks, saveBookmarks } from './bookmarks.js';
 
-/**
- * Set an expiry date on a bookmark by URL.
- */
-export function setExpiry(bookmarks, url, expiryDate) {
+export function setExpiry(bookmarks, url, date) {
   const bm = bookmarks.find(b => b.url === url);
   if (!bm) throw new Error(`Bookmark not found: ${url}`);
-  bm.expiresAt = expiryDate instanceof Date ? expiryDate.toISOString() : expiryDate;
+  bm.expiresAt = new Date(date).toISOString();
   return bookmarks;
 }
 
-/**
- * Clear the expiry date from a bookmark.
- */
 export function clearExpiry(bookmarks, url) {
   const bm = bookmarks.find(b => b.url === url);
   if (!bm) throw new Error(`Bookmark not found: ${url}`);
@@ -20,34 +14,23 @@ export function clearExpiry(bookmarks, url) {
   return bookmarks;
 }
 
-/**
- * Return bookmarks that have expired as of `now` (default: current time).
- */
-export function getExpiredBookmarks(bookmarks, now = new Date()) {
-  return bookmarks.filter(b => {
-    if (!b.expiresAt) return false;
-    return new Date(b.expiresAt) <= now;
-  });
+export function getExpiredBookmarks(bookmarks) {
+  const now = new Date();
+  return bookmarks.filter(b => b.expiresAt && new Date(b.expiresAt) < now);
 }
 
-/**
- * Return bookmarks expiring within `days` days from `now`.
- */
-export function getExpiringBookmarks(bookmarks, days = 7, now = new Date()) {
-  const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+export function getExpiringBookmarks(bookmarks, withinDays = 7) {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + withinDays * 24 * 60 * 60 * 1000);
   return bookmarks.filter(b => {
     if (!b.expiresAt) return false;
     const exp = new Date(b.expiresAt);
-    return exp > now && exp <= cutoff;
+    return exp >= now && exp <= cutoff;
   });
 }
 
-/**
- * Remove all expired bookmarks and return the pruned list.
- */
-export function pruneExpired(bookmarks, now = new Date()) {
-  return bookmarks.filter(b => {
-    if (!b.expiresAt) return true;
-    return new Date(b.expiresAt) > now;
-  });
+export function pruneExpired(bookmarks) {
+  const expired = getExpiredBookmarks(bookmarks);
+  const remaining = bookmarks.filter(b => !b.expiresAt || new Date(b.expiresAt) >= new Date());
+  return { pruned: expired, bookmarks: remaining };
 }

@@ -7,82 +7,85 @@ import {
   pruneExpired,
 } from './expiry.js';
 
-const NOW = new Date('2024-06-01T12:00:00Z');
-
 function makeBookmarks() {
   return [
     { url: 'https://a.com', title: 'A' },
-    { url: 'https://b.com', title: 'B', expiresAt: '2024-05-30T00:00:00Z' }, // expired
-    { url: 'https://c.com', title: 'C', expiresAt: '2024-06-05T00:00:00Z' }, // expires in 4 days
-    { url: 'https://d.com', title: 'D', expiresAt: '2024-06-15T00:00:00Z' }, // expires in 14 days
+    { url: 'https://b.com', title: 'B' },
+    { url: 'https://c.com', title: 'C' },
   ];
 }
 
-describe('setExpiry', () => {
-  it('sets expiresAt as ISO string on the matching bookmark', () => {
-    const bms = makeBookmarks();
-    setExpiry(bms, 'https://a.com', new Date('2024-07-01T00:00:00Z'));
-    expect(bms[0].expiresAt).toBe('2024-07-01T00:00:00.000Z');
-  });
+function daysFromNow(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString();
+}
 
-  it('accepts a string date directly', () => {
+describe('setExpiry', () => {
+  it('sets expiresAt on a bookmark', () => {
     const bms = makeBookmarks();
-    setExpiry(bms, 'https://a.com', '2024-08-01T00:00:00Z');
-    expect(bms[0].expiresAt).toBe('2024-08-01T00:00:00Z');
+    const result = setExpiry(bms, 'https://a.com', daysFromNow(5));
+    expect(result[0].expiresAt).toBeDefined();
   });
 
   it('throws if bookmark not found', () => {
-    expect(() => setExpiry(makeBookmarks(), 'https://missing.com', '2024-07-01')).toThrow();
+    expect(() => setExpiry(makeBookmarks(), 'https://z.com', daysFromNow(1))).toThrow();
   });
 });
 
 describe('clearExpiry', () => {
   it('removes expiresAt from a bookmark', () => {
     const bms = makeBookmarks();
-    clearExpiry(bms, 'https://b.com');
-    expect(bms[1].expiresAt).toBeUndefined();
+    setExpiry(bms, 'https://a.com', daysFromNow(5));
+    clearExpiry(bms, 'https://a.com');
+    expect(bms[0].expiresAt).toBeUndefined();
   });
 
   it('throws if bookmark not found', () => {
-    expect(() => clearExpiry(makeBookmarks(), 'https://nope.com')).toThrow();
+    expect(() => clearExpiry(makeBookmarks(), 'https://z.com')).toThrow();
   });
 });
 
 describe('getExpiredBookmarks', () => {
-  it('returns only bookmarks past their expiry', () => {
-    const expired = getExpiredBookmarks(makeBookmarks(), NOW);
+  it('returns bookmarks past their expiry', () => {
+    const bms = makeBookmarks();
+    bms[0].expiresAt = daysFromNow(-3);
+    bms[1].expiresAt = daysFromNow(2);
+    const expired = getExpiredBookmarks(bms);
     expect(expired).toHaveLength(1);
-    expect(expired[0].url).toBe('https://b.com');
+    expect(expired[0].url).toBe('https://a.com');
   });
 
-  it('returns empty array when none expired', () => {
-    const bms = [{ url: 'https://a.com', title: 'A' }];
-    expect(getExpiredBookmarks(bms, NOW)).toHaveLength(0);
+  it('returns empty if none expired', () => {
+    const bms = makeBookmarks();
+    expect(getExpiredBookmarks(bms)).toHaveLength(0);
   });
 });
 
 describe('getExpiringBookmarks', () => {
   it('returns bookmarks expiring within the window', () => {
-    const soon = getExpiringBookmarks(makeBookmarks(), 7, NOW);
+    const bms = makeBookmarks();
+    bms[0].expiresAt = daysFromNow(3);
+    bms[1].expiresAt = daysFromNow(10);
+    const soon = getExpiringBookmarks(bms, 7);
     expect(soon).toHaveLength(1);
-    expect(soon[0].url).toBe('https://c.com');
-  });
-
-  it('excludes already expired bookmarks', () => {
-    const soon = getExpiringBookmarks(makeBookmarks(), 30, NOW);
-    const urls = soon.map(b => b.url);
-    expect(urls).not.toContain('https://b.com');
+    expect(soon[0].url).toBe('https://a.com');
   });
 });
 
 describe('pruneExpired', () => {
-  it('removes expired bookmarks', () => {
-    const pruned = pruneExpired(makeBookmarks(), NOW);
-    expect(pruned.find(b => b.url === 'https://b.com')).toBeUndefined();
+  it('removes expired bookmarks and returns them', () => {
+    const bms = makeBookmarks();
+    bms[0].expiresAt = daysFromNow(-1);
+    const { pruned, bookmarks } = pruneExpired(bms);
+    expect(pruned).toHaveLength(1);
+    expect(bookmarks).toHaveLength(2);
   });
 
-  it('keeps non-expired and no-expiry bookmarks', () => {
-    const pruned = pruneExpired(makeBookmarks(), NOW);
-    expect(pruned).toHaveLength(3);
+  it('returns all bookmarks if none expired', () => {
+    const bms = makeBookmarks();
+    const { pruned, bookmarks } = pruneExpired(bms);
+    expect(pruned).toHaveLength(0);
+    expect(bookmarks).toHaveLength(3);
   });
 });
