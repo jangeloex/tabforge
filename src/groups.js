@@ -11,6 +11,7 @@ export function getGroups(bookmarks) {
 }
 
 export function assignGroup(bookmarks, urlOrId, groupName) {
+  if (!groupName || !groupName.trim()) throw new Error('Group name must not be empty');
   const updated = bookmarks.map((b) => {
     if (b.url === urlOrId || b.id === urlOrId) {
       return { ...b, group: groupName };
@@ -50,4 +51,15 @@ export function renameGroup(bookmarks, oldName, newName) {
     }
     return b;
   });
+}
+
+/**
+ * Returns all bookmarks that belong to the given group name.
+ * Treats bookmarks without a group as belonging to 'uncategorized'.
+ */
+export function getBookmarksInGroup(bookmarks, groupName) {
+  if (!groupName) throw new Error('Group name must not be empty');
+  return bookmarks.filter(
+    (b) => (b.group || 'uncategorized') === groupName
+  );
 }
